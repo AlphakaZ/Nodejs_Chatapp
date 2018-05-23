@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+    <head>
+        <title>
+            Chat App!
+        </title>
+        <link rel='stylesheet' href='/css/style.css'></link>
+    </head>
+
+    <body>
+        <div id='content'>
+            <div id='nick'></div>
+            <div id='room'></div>
+            <div id='rooms'>
+                    <ul id="room-list"></ul>
+            </div>
+            <div id='messages'>
+                <ul id="message-list"></ul>
+            </div>
+            
+            <form action="">
+                <input id='send-message' autocomplete="off"/>
+                <button>Send</button>
+                <div id='help'>
+                    Chat commands:
+                    <ul>
+                        <li>Change nickname: /nick [username]</li>
+                        <li>Join/create room: /join [room name]</li>
+                    </ul>
+                </div>
+            </form>
+        </div>
+    </body>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+    <script>
+        //キー
+        const NICK_KEY = "chat_nickname";
+        const ROOM_KEY = "chat_roomname";
+
+        // 現在ログインしている状態変数
+        let mynick;
+        let myroom;
+
+        function setNick(nick){
+            window.sessionStorage.setItem(NICK_KEY,encodeURIComponent(nick));
+            mynick = nick;
+            $('#nick').html("<p>NAME:"+nick+"</p>");
+        }
+        function getNick(){
+            return mynick;
+        }
+        function setRoom(room){
+            window.sessionStorage.setItem(ROOM_KEY,encodeURIComponent(room));
+            myroom = room;
+            $('#room').html("<p>ROOM:"+room+"</p>");
+        }
+        function getRoom(){
+            return myroom;
+        }
+
+        if(getRoom()==undefined){
+            setRoom("hogehoge");
+        }
+        if(getNick()==undefined){
+            setNick("fugafuga");
+        }
+
+        setNick(window.sessionStorage.getItem(NICK_KEY));
+        setRoom(window.sessionStorage.getItem(ROOM_KEY));
+
+        $(function(){
+            let socket = io();
+
+            
+
+            $('form').submit(function(){//formのsubmit時のアクションを設定
+                let message = $('#send-message').val();
+
+                let dat = {"message":message,"nick":getNick(),"room":getRoom()};
+                socket.json.emit('chat message', dat);//イベント送信
+                $('#send-message').val('');//"m"idの中身を空にする
+                return false;
+            });
+            // 自分の現在のroomと等しい時だけ追加
+            // 知らないroomが周知されたら => roomlistにroomを追加
+            socket.on('chat message', function(msg){//逆にchat messageを受け取った時=>listに追加
+                if(getRoom() == msg.room){
+                    $('#message-list').append($('<li>').text(msg.nick+":"+msg.message+" [from "+msg.room+"]"));
+                }else{
+                }
+                $('#message-list').append($('<li>').text(getRoom()));
+            });
+
+            socket.on('change nick',function(nick){
+                //クッキーに保存されたックネームを変える処理
+                let message = "[Rename]"+getNick()+"=>"+nick;
+                socket.json.emit('chat message', {"message":message,"nick":getNick(),"room":getRoom() });//イベント送信
+                setNick(nick);
+            });
+            socket.on('change room',function(room){
+                //ルームを変える処理
+                //Todo 退室しました,入室しました
+                setRoom(room);
+                $('#message-list').remove();
+            });
+
+            socket.on('update room',function(rooms){
+                // 誰かがルームを追加した
+                $('#room-list').remove();
+                rooms.dat.forEach(element => {
+                    $("#room-list").append($('<li>').text(element));
+                });
+            });
+        });
+    </script>
+
+</html>
